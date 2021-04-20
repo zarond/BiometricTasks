@@ -34,7 +34,8 @@ def gradient_feature(image:np.array, n = 2):
     size = image.shape[0]//n
     result = np.empty(size-1)
     for i in range(size-1):
-         result[i] = np.sum(np.square(image[i*n:i*n+n,:]-np.flip(image[i*n+n:i*n+2*n,:],axis=0)))
+         #result[i] = np.sum(np.square(image[i*n:i*n+n,:]-np.flip(image[i*n+n:i*n+2*n,:],axis=0)))
+         result[i] = np.sum(image[i*n:i*n+n,:]-np.flip(image[i*n+n:i*n+2*n,:],axis=0))
     return result
 
 def scale_feature(image:np.array, scale = 0.35):
