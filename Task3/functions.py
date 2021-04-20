@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-from sklearn.datasets import fetch_olivetti_faces
 import os
 from scipy import fftpack ,spatial
 import cv2
