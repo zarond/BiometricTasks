@@ -6,6 +6,7 @@ from scipy import fftpack ,spatial
 import cv2
 from PIL import Image
 import io
+import collections
 
 def fig2img(fig):
     """Convert a Matplotlib figure to a PIL Image and return it"""
@@ -30,12 +31,20 @@ def dct_feature(image:np.array, size = 13):
     r = r[0:size, 0:size]
     return r
 
+#def gradient_feature(image:np.array, n = 2):
+#    size = image.shape[0]//n
+#    result = np.empty(size-1)
+#    for i in range(size-1):
+#        # result[i] = np.sum(np.square(image[i*n:i*n+n,:]-np.flip(image[i*n+n:i*n+2*n,:],axis=0)))
+#         result[i] = np.sum(image[i*n:i*n+n,:]-np.flip(image[i*n+n:i*n+2*n,:],axis=0))
+#    return result
+
 def gradient_feature(image:np.array, n = 2):
-    size = image.shape[0]//n
-    result = np.empty(size-1)
-    for i in range(size-1):
-         #result[i] = np.sum(np.square(image[i*n:i*n+n,:]-np.flip(image[i*n+n:i*n+2*n,:],axis=0)))
-         result[i] = np.sum(image[i*n:i*n+n,:]-np.flip(image[i*n+n:i*n+2*n,:],axis=0))
+    #if n<=0: return np.array([0])
+    size = image.shape[0]
+    result = np.empty(size-2*n)
+    for i in range(n,size-n):
+         result[i-n] = np.sum(np.square(image[i-n:i,:]-np.flip(image[i:i+n,:],axis=0)))
     return result
 
 def scale_feature(image:np.array, scale = 0.35):
@@ -80,7 +89,7 @@ def split_data(data:np.array,target:np.array, images_per_person_in_train=5, imag
 	y_train = target[indices_train]
 	y_test = target[indices_test]
 	
-	return x_train, x_test, y_train, y_test
+	return x_train, x_test, y_train, y_test,  indices_train, indices_test
 
 def choose_n_from_data(data:np.array,target:np.array, number):
 	indexes = random.sample(range(0, data.shape[0]), number)
@@ -130,7 +139,8 @@ def test_classifier(featured_data:np.array, target:np.array, test_elements:np.ar
 
 def vote_classifier(data:np.array,  target:np.array, new_elements:np.array, parameters, featured_data=None):
 	methods = [histogram_feature, dft_feature, dct_feature, gradient_feature, scale_feature]
-	res = [0]*len(methods)
+	#res = [0]*len(methods)
+	res = np.zeros([len(methods),new_elements.shape[0]])
 	if not featured_data:
 		for i in range(len(methods)):
 			featured_data = calculate_feature(data, methods[i], parameters[i])
@@ -138,21 +148,29 @@ def vote_classifier(data:np.array,  target:np.array, new_elements:np.array, para
 	else:
 		for i in range(len(methods)):
 			res[i] = classifier(featured_data[i], target, new_elements, methods[i], parameters[i])
-	tmp = []
+	#tmp = []
+	#EXP = False#True
+	#if EXP:
+	res = res.T
+	tmp = np.empty(new_elements.shape[0])
 	for i in range(new_elements.shape[0]):
-		set_of_answers = {}
-		for method in res:
-			t = method[i]
-			if t in set_of_answers:
-				set_of_answers[t] += 1
-			else:
-				set_of_answers[t] = 1
-		best_answer = sorted(set_of_answers, key=set_of_answers.get, reverse=True)[0]
-		tmp.append(best_answer)
-	return np.array(tmp)
+		best_answer = collections.Counter(res[i]).most_common()[0][0]
+		tmp[i] = best_answer
+	return tmp, res
+	#for i in range(new_elements.shape[0]):
+	#	set_of_answers = {}
+	#	for method in res:
+	#		t = method[i]
+	#		if t in set_of_answers:
+	#			set_of_answers[t] += 1
+	#		else:
+	#			set_of_answers[t] = 1
+	#	best_answer = sorted(set_of_answers, key=set_of_answers.get, reverse=True)[0]
+	#	tmp.append(best_answer)
+	#return np.array(tmp), res.T
 
 def test_vote_classifier(data:np.array, target:np.array, test_data:np.array, test_targets:np.array, parameters, featured_data=None):
-	answers = vote_classifier(data, target, test_data, parameters, featured_data)
+	answers = vote_classifier(data, target, test_data, parameters, featured_data)[0]
 	correct_answers = np.count_nonzero(answers==test_targets)
 	return correct_answers/test_targets.shape[0]
 
@@ -187,8 +205,8 @@ def teach_parameter(data:np.array, target:np.array, test_elements:np.array, test
 	return [best_param, classf], stat
 
 def cross_validation(data:np.array, target:np.array, method, images_per_person, folds=3):
-	if folds < 3:
-		folds = 3
+	if folds < 2:
+		folds = 2
 	#per_fold = int(data.shape[0]/folds)
 	fold_step = int(images_per_person/folds)
 	per_fold = int(images_per_person//folds+(images_per_person%folds>0))
